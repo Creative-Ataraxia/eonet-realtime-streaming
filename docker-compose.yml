@@ -1,28 +1,39 @@
-version: '3.8'
+networks:
+  app-tier:
+    driver: bridge
 
 services:
 
   kafka:
-    image: apache/kafka:4.0.0
+    image: bitnami/kafka:latest
     container_name: kafka-broker
+    networks:
+      - app-tier
     ports:
       - "9092:9092"
+    volumes:
+      - kafka-data:/bitnami/kafka
     environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_LOG_DIRS: /tmp/kraft-combined-logs
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'   # don't let kafka auto-create topics; always create topics explicitly ahead
-    command: ["./bin/kafka-server-start.sh", "./config/kraft/server.properties"]
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - ALLOW_PLAINTEXT_LISTENER=yes     # Bitnami-specific flag for easy dev
+      - KAFKA_CFG_LOG_RETENTION_HOURS=72 # how long to keep older messages on the wsl distro vhdx
 
   poller:
     build:
       context: ./ingestion
-      dockerfile: Dockerfile
     container_name: eonet-poller
+    networks:
+      - app-tier
     depends_on:
       - kafka
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092  # Used inside poller.py
+    restart: on-failure
+
+volumes:
+  kafka-data:

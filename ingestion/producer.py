@@ -1,4 +1,5 @@
-from confluent_kafka import Producer, KafkaException, AdminClient, NewTopic
+from confluent_kafka import Producer, KafkaException
+from confluent_kafka.admin import AdminClient, NewTopic
 import json
 import time
 
@@ -12,20 +13,16 @@ class KafkaProducer:
             try:
                 self.producer = Producer({'bootstrap.servers': self.bootstrap_servers})
                 self._verify_kafka_connection()
-                self._ensure_topic_exists() # create topic explicitly
+                self._ensure_topic_exists()
                 print("[dev log] Kafka producer connected and topic verified.")
                 return
             except KafkaException as e:
                 print(f"[dev log] Kafka connection failed: {e}")
                 attempt += 1
-                wait_time = backoff_seconds * attempt
-                print(f"[dev log] Retrying Kafka connection in {wait_time} seconds...")
-                time.sleep(wait_time)
-
+                time.sleep(backoff_seconds)
         raise RuntimeError("Failed to connect to Kafka after multiple attempts.")
 
     def _verify_kafka_connection(self):
-        # This tests connectivity without producing
         self.producer.list_topics(timeout=5)
 
     def _ensure_topic_exists(self):
@@ -36,9 +33,8 @@ class KafkaProducer:
             print(f"[dev log] Topic '{self.topic}' already exists.")
             return
 
-        # Topic does not exist, create it
-        topic_spec = [NewTopic(self.topic, num_partitions=3, replication_factor=1)]
-        fs = admin_client.create_topics(topic_spec)
+        new_topic = [NewTopic(self.topic, num_partitions=3, replication_factor=1)]
+        fs = admin_client.create_topics(new_topic)
 
         for topic, f in fs.items():
             try:
@@ -50,7 +46,7 @@ class KafkaProducer:
     def produce(self, record: dict):
         payload = json.dumps(record).encode('utf-8')
         self.producer.produce(self.topic, payload)
-        self.producer.flush() # don't do this in production; make async
+        self.producer.flush()
 
     def close(self):
         self.producer.flush()
