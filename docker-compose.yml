@@ -1,39 +1,51 @@
-networks:
-  app-tier:
-    driver: bridge
-
 services:
 
-  kafka:
+  kafka-broker:
     image: bitnami/kafka:latest
     container_name: kafka-broker
-    networks:
-      - app-tier
     ports:
       - "9092:9092"
-    volumes:
-      - kafka-data:/bitnami/kafka
     environment:
       - KAFKA_CFG_NODE_ID=0
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka-broker:9093
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
       - ALLOW_PLAINTEXT_LISTENER=yes     # Bitnami-specific flag for easy dev
       - KAFKA_CFG_LOG_RETENTION_HOURS=72 # how long to keep older messages on the wsl distro vhdx
+    volumes:
+      - kafka-data:/bitnami/kafka
 
   poller:
     build:
-      context: ./ingestion
+      context: ./poller
     container_name: eonet-poller
-    networks:
-      - app-tier
     depends_on:
-      - kafka
+      - kafka-broker
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092  # Used inside poller.py
-    restart: on-failure
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-broker:9092
+      - POLL_MODE=dev # remember to set this to `prod` to ingest entire `events.json`
+
+  flink-jobmanager:
+    image: flink:latest
+    container_name: flink-jobmanager
+    ports:
+      - "8081:8081"  # Flink UI
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+    depends_on:
+      - kafka-broker
+
+  flink-taskmanager:
+    image: flink:latest
+    container_name: flink-taskmanager
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
 
 volumes:
   kafka-data:
