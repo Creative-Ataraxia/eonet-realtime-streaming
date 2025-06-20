@@ -28,7 +28,7 @@ services:
       - POLL_MODE=dev # remember to set this to `prod` to ingest entire `events.json`
 
   flink-jobmanager:
-    image: flink:latest
+    image: flink:2.0.0
     container_name: flink-jobmanager
     ports:
       - "8081:8081"  # Flink UI
@@ -37,15 +37,24 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
     depends_on:
       - kafka-broker
+    volumes:
+      - ./flink-sql:/opt/sql
+      - ./flink-plugins/flink-sql-connector-kafka-4.0.0-2.0.jar:/opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar
 
   flink-taskmanager:
-    image: flink:latest
+    image: flink:2.0.0
     container_name: flink-taskmanager
     depends_on:
       - flink-jobmanager
     command: taskmanager
     environment:
-      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager # how many expected streaming jobs running
+      - | 
+        FLINK_PROPERTIES=
+        taskmanager.numberOfTaskSlots: 4
+    volumes:
+      - ./flink-sql:/opt/sql
+      - ./flink-plugins/flink-sql-connector-kafka-4.0.0-2.0.jar:/opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar
 
 volumes:
   kafka-data:
