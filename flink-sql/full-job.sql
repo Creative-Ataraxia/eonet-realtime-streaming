@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS eonet_raw (
   `geometry` ARRAY<ROW<
     `magnitudeValue` DOUBLE,
     `magnitudeUnit` STRING,
-    `date` TIMESTAMP(3),
+    `date` STRING, -- cast as string here for the later replace to timestamp hack
     `type` STRING,
     `coordinates` ARRAY<DOUBLE>
   >>,
@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS eonet_raw (
   'format' = 'json',
   'json.ignore-parse-errors' = 'true',
   'scan.startup.mode' = 'earliest-offset',
+  'sink.transactional-id-prefix' = 'raw-job-',
   'properties.group.id' = 'flink-eonet-group'
 );
 
@@ -34,13 +35,45 @@ CREATE TABLE IF NOT EXISTS eonet_flattened (
   magnitude_unit STRING,
   geom_date TIMESTAMP(3),
   lon DOUBLE,
-  lat DOUBLE
+  lat DOUBLE,
+  PRIMARY KEY (id) NOT ENFORCED
 ) WITH (
-  'connector' = 'kafka',
+  'connector' = 'upsert-kafka',
   'topic' = 'eonet_flattened',
   'properties.bootstrap.servers' = 'kafka-broker:9092',
-  'format' = 'json',
+  'key.format' = 'json',
+  'value.format' = 'json',
+  'sink.transactional-id-prefix' = 'flattened-job-',
   'properties.group.id' = 'flink-eonet-group'
+);
+
+
+INSERT INTO eonet_flattened
+SELECT
+  `id`,
+  `title`,
+  `categories`[1].`id` AS category_id,
+  `categories`[1].`title` AS category_title,
+
+  -- Access last (and newest) element directly
+  geometry_elem.magnitudeValue AS magnitude,
+  geometry_elem.magnitudeUnit AS magnitude_unit,
+
+  TO_TIMESTAMP(
+    REPLACE(REPLACE(geometry_elem.`date`, 'T', ' '), 'Z', ''), -- use this replace pattern to manually cast to timestep, because setting to ISO-8601 didn't work
+    'yyyy-MM-dd HH:mm:ss'
+  ) AS geom_date,
+
+  geometry_elem.coordinates[1] AS lon,
+  geometry_elem.coordinates[2] AS lat
+
+FROM (
+  SELECT
+    `id`,
+    `title`,
+    `categories`,
+    geometry[cardinality(geometry)] AS geometry_elem
+  FROM eonet_raw
 );
 
 
@@ -53,60 +86,19 @@ CREATE TABLE IF NOT EXISTS eonet_dlq (
   magnitude_unit STRING,
   geom_date TIMESTAMP(3),
   lon DOUBLE,
-  lat DOUBLE
+  lat DOUBLE,
+  PRIMARY KEY (id) NOT ENFORCED
 ) WITH (
-  'connector' = 'kafka',
+  'connector' = 'upsert-kafka',
   'topic' = 'eonet_dlq',
   'properties.bootstrap.servers' = 'kafka-broker:9092',
-  'format' = 'json',
-  'json.ignore-parse-errors' = 'true',
+  'key.format' = 'json',
+  'value.format' = 'json',
+  'sink.transactional-id-prefix' = 'dlq-job-',
   'properties.group.id' = 'flink-eonet-group'
 );
 
 
-CREATE TABLE IF NOT EXISTS eonet_cleaned (
-  id STRING,
-  title STRING,
-  category_title STRING,
-  geom_date TIMESTAMP(3),
-  lon DOUBLE,
-  lat DOUBLE,
-  processed_time TIMESTAMP(3)
-) WITH (
-  'connector' = 'kafka',
-  'topic' = 'eonet_cleaned',
-  'properties.bootstrap.servers' = 'kafka-broker:9092',
-  'format' = 'json',
-  'properties.group.id' = 'flink-eonet-group'
-);
-
-
-INSERT INTO eonet_flattened
-SELECT
-  `id`,
-  `title`,
-  `categories`[1].`id` AS category_id,
-  `categories`[1].`title` AS category_title,
-
-  -- Access last(and newest) element of geometry array directly
-  geometry_elem.magnitudeValue AS magnitude,
-  geometry_elem.magnitudeUnit AS magnitude_unit,
-  geometry_elem.`date` AS geom_date,
-  geometry_elem.coordinates[1] AS lon,
-  geometry_elem.coordinates[2] AS lat
-
-FROM (
-  SELECT
-    `id`,
-    `title`,
-    `categories`,
-    -- Pull out last element
-    geometry[cardinality(geometry)] AS geometry_elem
-  FROM `eonet_raw`
-);
-
-
--- Validate and route invalid records into DLQ
 INSERT INTO eonet_dlq
 SELECT
   id,
@@ -127,7 +119,26 @@ WHERE id IS NULL
    OR lat IS NULL;
 
 
--- Deduplicate and produce cleaned dataset
+CREATE TABLE IF NOT EXISTS eonet_cleaned (
+  id STRING,
+  title STRING,
+  category_title STRING,
+  geom_date TIMESTAMP(3),
+  lon DOUBLE,
+  lat DOUBLE,
+  processed_time TIMESTAMP(3),
+  PRIMARY KEY (id) NOT ENFORCED
+) WITH (
+  'connector' = 'upsert-kafka',
+  'topic' = 'eonet_cleaned',
+  'properties.bootstrap.servers' = 'kafka-broker:9092',
+  'key.format' = 'json',
+  'value.format' = 'json',
+  'sink.transactional-id-prefix' = 'cleaned-job-',
+  'properties.group.id' = 'flink-eonet-group'
+);
+
+
 INSERT INTO eonet_cleaned
 SELECT
   id,

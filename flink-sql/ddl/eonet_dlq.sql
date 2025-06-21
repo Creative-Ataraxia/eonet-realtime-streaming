@@ -7,11 +7,13 @@ CREATE TABLE IF NOT EXISTS eonet_dlq (
   magnitude_unit STRING,
   geom_date TIMESTAMP(3),
   lon DOUBLE,
-  lat DOUBLE
+  lat DOUBLE,
+  PRIMARY KEY (id) NOT ENFORCED
 ) WITH (
-  'connector' = 'kafka',
+  'connector' = 'upsert-kafka',
   'topic' = 'eonet_dlq',
   'properties.bootstrap.servers' = 'kafka-broker:9092',
-  'format' = 'json',
-  'json.ignore-parse-errors' = 'true'
+  'key.format' = 'json',
+  'value.format' = 'json',
+  'properties.group.id' = 'flink-eonet-group'
 );
