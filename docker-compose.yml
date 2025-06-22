@@ -6,16 +6,41 @@ services:
     ports:
       - "9092:9092"
     environment:
-      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_NODE_ID=1
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka-broker:9093
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka-broker:9093
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka-broker:9092,CONTROLLER://kafka-broker:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-broker:9092
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - ALLOW_PLAINTEXT_LISTENER=yes     # Bitnami-specific flag for easy dev
-      - KAFKA_CFG_LOG_RETENTION_HOURS=72 # how long to keep older messages on the wsl distro vhdx
+      - KAFKA_KRAFT_CLUSTER_ID=kraft-cluster-01
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LOG_RETENTION_HOURS=72
     volumes:
       - kafka-data:/bitnami/kafka
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    restart: no
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: eonet
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql
+
+  eonet-create-topics:
+    image: bitnami/kafka:latest
+    container_name: eonet-create-topics
+    depends_on:
+      - kafka-broker
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: ["/bin/sh", "/scripts/init-kafka-topics.sh"]
 
   poller:
     build:
@@ -56,5 +81,38 @@ services:
       - ./flink-sql:/opt/sql
       - ./flink-plugins/flink-sql-connector-kafka-4.0.0-2.0.jar:/opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar
 
+  kafka-connect:
+    image: bitnami/kafka-connect:latest
+    container_name: kafka-connect
+    depends_on:
+      - kafka-broker
+      - postgres
+    ports:
+      - "8083:8083"
+    environment:
+      - KAFKA_CFG_BOOTSTRAP_SERVERS=kafka-broker:9092
+      - KAFKA_CFG_GROUP_ID=kafka-connect-group
+      - KAFKA_CFG_CONFIG_STORAGE_TOPIC=connect-configs
+      - KAFKA_CFG_OFFSET_STORAGE_TOPIC=connect-offsets
+      - KAFKA_CFG_STATUS_STORAGE_TOPIC=connect-status
+      - KAFKA_CFG_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - KAFKA_CFG_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - KAFKA_CFG_INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - KAFKA_CFG_INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    volumes:
+      - ./connect-plugins:/opt/bitnami/kafka/plugins
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka-broker:9092
+
 volumes:
   kafka-data:
+  postgres-data:
+
