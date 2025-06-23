@@ -22,3 +22,18 @@ start fresh workflow:
 7) Exec into Flink's container: `docker exec -it flink-jobmanager /bin/bash`
 8) Submit all Flink Jobs: `./bin/sql-client.sh -f /opt/sql/full-job.sql`
 9) Verify from Flink's UI that all jobs are running: `http://localhost:8081/#/overview`
+
+
+Check the health of the kafka-to-postgres module:
+1) after `docker compose up`, `docker compose ps`, see if all 4 services are running: `kafka-broker, kafka-connect , kafka-ui, postgres`
+2) check jdbc-sink-connector's status, make sure it's `running`:
+    - `curl http://localhost:8083/connectors/postgres-sink-connector/status | jq`
+3) exec into postgres and check tables; `\dt` to show all tables
+    - `docker exec -it postgres psql -U postgres -d eonet`
+    - remember in postgres SQL statements needs to end with `;` to run
+4) check if kafka-UI is running correctly: `http://localhost:8080/`
+    - check in `consumer`, `connect-postgres-sink-connector` is "stable"
+5) check sink connector's `insert.mode` setting:
+    - `curl http://localhost:8083/connectors/postgres-sink-connector/config | jq`
+    - if for some reason the config is wrong (pay attention to `insert.mode`); then delete & re-create connector
+6) try producing a message (don't use the UI!) into `eonet_raw` and see if it shows up in postgres

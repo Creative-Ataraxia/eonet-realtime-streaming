@@ -77,7 +77,9 @@ services:
     entrypoint: >
       sh -c "
       /scripts/wait-for-kafka-connect.sh &&
-      echo 'Registering Kafka JDBC Sink Connector...' &&
+      echo 'Deleting old Kafka JDBC Sink Connector...' &&
+      curl -X DELETE http://kafka-connect:8083/connectors/postgres-sink-connector &&
+      echo 'Registering new Kafka JDBC Sink Connector...' &&
       curl -X POST http://kafka-connect:8083/connectors -H 'Content-Type: application/json' --data '@/init/connect-jdbc-sink.json'
       "
     volumes:

@@ -125,10 +125,10 @@ CREATE TABLE IF NOT EXISTS eonet_cleaned (
   category_title STRING,
   magnitude DOUBLE,
   magnitude_unit STRING,
-  geom_date TIMESTAMP(3),
+  geom_date BIGINT,
   lon DOUBLE,
   lat DOUBLE,
-  processed_time TIMESTAMP(3),
+  processed_time BIGINT,
   PRIMARY KEY (id) NOT ENFORCED
 ) WITH (
   'connector' = 'upsert-kafka',
@@ -148,10 +148,10 @@ SELECT
   category_title,
   magnitude,
   magnitude_unit,
-  geom_date,
+  CAST(UNIX_TIMESTAMP(geom_date) * 1000 AS BIGINT) AS geom_date,
   lon,
   lat,
-  CURRENT_TIMESTAMP AS processed_time
+  CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP) * 1000 AS BIGINT) AS processed_time
 FROM (
   SELECT *,
     ROW_NUMBER() OVER (PARTITION BY id ORDER BY geom_date DESC) AS rownum
