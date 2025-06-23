@@ -12,12 +12,18 @@ services:
       - KAFKA_CFG_LISTENERS=PLAINTEXT://kafka-broker:9092,CONTROLLER://kafka-broker:9093
       - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-broker:9092
       - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - KAFKA_KRAFT_CLUSTER_ID=kraft-cluster-01
+      - KAFKA_CFG_KRAFT_CLUSTER_ID_FILE=/bitnami/kafka/storage/meta.properties
       - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_LOG_RETENTION_HOURS=72
     volumes:
       - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: [ "CMD-SHELL", "/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-broker:9092 --list || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   postgres:
     image: postgres:latest
@@ -31,13 +37,14 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql
+      - ./kafka-postgres/postgres-init.sql:/docker-entrypoint-initdb.d/postgres-init.sql
 
-  eonet-create-topics:
+  kafka-topics-init:
     image: bitnami/kafka:latest
-    container_name: eonet-create-topics
+    container_name: kafka-topics-init
     depends_on:
-      - kafka-broker
+      kafka-broker:
+        condition: service_healthy
     volumes:
       - ./scripts:/scripts
     entrypoint: ["/bin/sh", "/scripts/init-kafka-topics.sh"]
@@ -62,6 +69,7 @@ services:
       - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
     depends_on:
       - kafka-broker
+      - kafka-topics-init
     volumes:
       - ./flink-sql:/opt/sql
       - ./flink-plugins/flink-sql-connector-kafka-4.0.0-2.0.jar:/opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar
@@ -82,35 +90,68 @@ services:
       - ./flink-plugins/flink-sql-connector-kafka-4.0.0-2.0.jar:/opt/flink/lib/flink-sql-connector-kafka-4.0.0-2.0.jar
 
   kafka-connect:
-    image: bitnami/kafka-connect:latest
+    image: confluentinc/cp-kafka-connect:latest
     container_name: kafka-connect
     depends_on:
       - kafka-broker
       - postgres
     ports:
-      - "8083:8083"
+      - "8083:8083"  # Kafka Connect REST API
     environment:
-      - KAFKA_CFG_BOOTSTRAP_SERVERS=kafka-broker:9092
-      - KAFKA_CFG_GROUP_ID=kafka-connect-group
-      - KAFKA_CFG_CONFIG_STORAGE_TOPIC=connect-configs
-      - KAFKA_CFG_OFFSET_STORAGE_TOPIC=connect-offsets
-      - KAFKA_CFG_STATUS_STORAGE_TOPIC=connect-status
-      - KAFKA_CFG_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - KAFKA_CFG_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - KAFKA_CFG_INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - KAFKA_CFG_INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
-      - ALLOW_PLAINTEXT_LISTENER=yes
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_BOOTSTRAP_SERVERS: kafka-broker:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: kafka-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: kafka-connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: kafka-connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: kafka-connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components"
     volumes:
-      - ./connect-plugins:/opt/bitnami/kafka/plugins
+      - ./kafka-postgres/connect-plugins:/usr/share/confluent-hub-components
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  kafka-connect-init:
+    image: curlimages/curl:latest
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      /scripts/wait-for-kafka-connect.sh &&
+      echo 'Deleting old Kafka JDBC Sink Connector...' &&
+      curl -X DELETE http://kafka-connect:8083/connectors/postgres-sink-connector || true &&
+      echo 'Registering new Kafka JDBC Sink Connector...' &&
+      curl -X POST http://kafka-connect:8083/connectors -H 'Content-Type: application/json' --data '@/init/connect-jdbc-sink.json'
+      "
+    volumes:
+      - ./kafka-postgres/kafka-init:/init
+      - ./kafka-postgres/scripts:/scripts
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
+    depends_on:
+      - kafka-broker
     ports:
       - "8080:8080"
     environment:
-      - KAFKA_CLUSTERS_0_NAME=local
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka-broker:9092
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAP_SERVERS: kafka-broker:9092
 
 volumes:
   kafka-data:

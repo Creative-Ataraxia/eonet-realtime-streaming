@@ -37,3 +37,47 @@ Check the health of the kafka-to-postgres module:
     - `curl http://localhost:8083/connectors/postgres-sink-connector/config | jq`
     - if for some reason the config is wrong (pay attention to `insert.mode`); then delete & re-create connector
 6) try producing a message (don't use the UI!) into `eonet_raw` and see if it shows up in postgres
+
+
+Check the healthy of the overall pipeline:
+1) check the status of kafka connector
+    - `curl http://localhost:8083/connectors/postgres-sink-connector/status | jq`
+2) check kafka UI; topics, consumers
+    - `http://localhost:8080/ui/clusters/local/all-topics`
+3) check postgres; `\dt` to show all tables
+    - `docker exec -it postgres psql -U postgres -d eonet`
+4) try producing a mock message via kafka UI into `eonet_test` and check if shows up in postgres
+    ```json
+    {
+        "schema": {
+            "type": "struct",
+            "fields": [
+            { "field": "id", "type": "string" },
+            { "field": "title", "type": "string" },
+            { "field": "category_title", "type": "string" },
+            { "field": "magnitude", "type": "double" },
+            { "field": "magnitude_unit", "type": "string" },
+            { "field": "geom_date", "type": "int64", "name": "org.apache.kafka.connect.data.Timestamp" },
+            { "field": "lon", "type": "double" },
+            { "field": "lat", "type": "double" },
+            { "field": "processed_time", "type": "int64", "name": "org.apache.kafka.connect.data.Timestamp" }
+            ],
+            "optional": false,
+            "name": "eonet_cleaned_schema"
+        },
+        "payload": {
+            "id": "MOCK_124",
+            "title": "Mock Event",
+            "category_title": "Mock",
+            "magnitude": 100.0,
+            "magnitude_unit": "mock",
+            "geom_date": 1750656000000,
+            "lon": -117.2,
+            "lat": 44.28,
+            "processed_time": 1750579200000
+        }
+    }
+    ```
+    in postgres: `select * from eonet_test;`
+5) after submitting flink sql jobs, check flink UI for job status:
+    - `http://localhost:8081/#/overview`

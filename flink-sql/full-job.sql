@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS eonet_raw (
   `geometry` ARRAY<ROW<
     `magnitudeValue` DOUBLE,
     `magnitudeUnit` STRING,
-    `date` STRING, -- cast as string here for the later replace to timestamp hack
+    `date` STRING, -- cast as string here so UNIX_TIMESTAMP can work later
     `type` STRING,
     `coordinates` ARRAY<DOUBLE>
   >>,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS eonet_flattened (
   category_title STRING,
   magnitude DOUBLE,
   magnitude_unit STRING,
-  geom_date TIMESTAMP(3),
+  geom_date BIGINT,
   lon DOUBLE,
   lat DOUBLE,
   PRIMARY KEY (id) NOT ENFORCED
@@ -58,12 +58,7 @@ SELECT
   -- Access last (and newest) element directly
   geometry_elem.magnitudeValue AS magnitude,
   geometry_elem.magnitudeUnit AS magnitude_unit,
-
-  TO_TIMESTAMP(
-    REPLACE(REPLACE(geometry_elem.`date`, 'T', ' '), 'Z', ''), -- use this replace pattern to manually cast to timestep, because setting to ISO-8601 didn't work
-    'yyyy-MM-dd HH:mm:ss'
-  ) AS geom_date,
-
+  CAST(UNIX_TIMESTAMP(REPLACE(REPLACE(geometry_elem.`date`, 'T', ' '), 'Z', '')) * 1000 AS BIGINT) AS geom_date, -- UNIX_TIMESTAMP returns BIGINT
   geometry_elem.coordinates[1] AS lon,
   geometry_elem.coordinates[2] AS lat
 
@@ -84,7 +79,7 @@ CREATE TABLE IF NOT EXISTS eonet_dlq (
   category_title STRING,
   magnitude DOUBLE,
   magnitude_unit STRING,
-  geom_date TIMESTAMP(3),
+  geom_date BIGINT,
   lon DOUBLE,
   lat DOUBLE,
   PRIMARY KEY (id) NOT ENFORCED
@@ -148,10 +143,10 @@ SELECT
   category_title,
   magnitude,
   magnitude_unit,
-  CAST(UNIX_TIMESTAMP(geom_date) * 1000 AS BIGINT) AS geom_date,
+  geom_date,
   lon,
   lat,
-  CAST(UNIX_TIMESTAMP(CURRENT_TIMESTAMP) * 1000 AS BIGINT) AS processed_time
+  CAST(UNIX_TIMESTAMP(CAST(CURRENT_TIMESTAMP AS STRING)) * 1000 AS BIGINT) AS processed_time
 FROM (
   SELECT *,
     ROW_NUMBER() OVER (PARTITION BY id ORDER BY geom_date DESC) AS rownum
