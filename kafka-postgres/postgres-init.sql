@@ -4,10 +4,10 @@ CREATE TABLE IF NOT EXISTS eonet_cleaned (
     category_title TEXT,
     magnitude DOUBLE PRECISION,
     magnitude_unit TEXT,
-    geom_date TIMESTAMP,
+    geom_date BIGINT,
     lon DOUBLE PRECISION,
     lat DOUBLE PRECISION,
-    processed_time TIMESTAMP
+    processed_time BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS eonet_test (
@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS eonet_test (
     category_title TEXT,
     magnitude DOUBLE PRECISION,
     magnitude_unit TEXT,
-    geom_date TIMESTAMP,
+    geom_date BIGINT,
     lon DOUBLE PRECISION,
     lat DOUBLE PRECISION,
-    processed_time TIMESTAMP
+    processed_time BIGINT
 );

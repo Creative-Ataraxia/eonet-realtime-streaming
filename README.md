@@ -81,3 +81,20 @@ Check the healthy of the overall pipeline:
     in postgres: `select * from eonet_test;`
 5) after submitting flink sql jobs, check flink UI for job status:
     - `http://localhost:8081/#/overview`
+
+
+during pipeline debugging, to reset status:
+
+1) delete all messages from topics via UI
+
+2) delete & reset sink connector
+    - `curl -X DELETE http://localhost:8083/connectors/postgres-sink-connector`
+    - `curl -X POST http://localhost:8083/connectors -H 'Content-Type: application/json' --data-binary @/home/roy/projects/eonet/kafka-postgres/kafka-init/connect-jdbc-sink.json`
+    - check if connects tasks for 'running' status
+        - `curl http://localhost:8083/connectors/postgres-sink-connector/status | jq`
+
+3) cancel all currently running flink job via UI
+
+4) then, post all flink jobs again to continue debugging (check sql codes are the most current ones)
+    - `cat /opt/sql/full-job.sql`
+    - `./bin/sql-client.sh -f /opt/sql/full-job.sql`

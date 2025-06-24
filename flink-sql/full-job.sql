@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS eonet_dlq (
   'properties.bootstrap.servers' = 'kafka-broker:9092',
   'key.format' = 'json',
   'value.format' = 'json',
-  'sink.transactional-id-prefix' = 'dlq-job-',
+  'sink.transactional-id-prefix' = 'dlq-jobs-',
   'properties.group.id' = 'flink-eonet-group'
 );
 

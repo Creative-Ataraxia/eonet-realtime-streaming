@@ -9,6 +9,9 @@
     "connection.password": "postgres",
     "dialect.name": "PostgreSqlDatabaseDialect",
 
+    "transforms": "WrapWithSchema",
+    "transforms.WrapWithSchema.type": "com.example.transforms.WrapWithSchema",
+
     "insert.mode": "upsert",
     "pk.mode": "record_value",
     "pk.fields": "id",
@@ -22,6 +25,6 @@
     "key.converter.schemas.enable": false,
 
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
-    "value.converter.schemas.enable": true
+    "value.converter.schemas.enable": false
   }
 }
