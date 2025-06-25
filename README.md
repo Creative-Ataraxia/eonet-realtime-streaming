@@ -1,6 +1,7 @@
 # **Real-Time Streaming Pipeline & Visualizations for NASA's natural events**
 
 <br>
+
 ## **Overview**
 
 This is a real-time streaming data engineering project; The pipeline ingests, transforms, persists, and visualize data about real-time natural events sourced from NASA's *eonet* APIs; Techs used are: `Kafka`, `Flink`, `Postgres`, `Mapbox`, and orchestrated using `Docker` Compose; I also wrote custom connectors and microservices in `Python` and `Java` to improve data flow and optimize real-time processing. This end-to-end data engineering project follows the industry's best practice patterns for ingesting *bursty* real-time data, apply streaming transformations, sink into storage, and consume with live-refresh less than 2,000ms;
