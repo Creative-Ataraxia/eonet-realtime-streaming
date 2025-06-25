@@ -1,6 +1,6 @@
 # **Real-Time Streaming Pipeline & Visualizations for NASA's natural events**
 
-<br>
+
 
 ## **Overview**
 
