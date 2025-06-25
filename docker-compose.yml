@@ -57,7 +57,7 @@ services:
       - kafka-broker
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka-broker:9092
-      - POLL_MODE=dev # remember to set this to `prod` to ingest entire `events.json`
+      - POLL_MODE=prod
 
   flink-jobmanager:
     image: flink:2.0.0
