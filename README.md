@@ -16,11 +16,11 @@ This is a real-time streaming data engineering project; The pipeline ingests, tr
 
 ## Real-time Visualizations
 
-<img src="img/Dash_1.png"/>
+<img src="superset/Dash_1.png"/>
 
-<img src="img/Dash_2.png"/>
+<img src="superset/Dash_2.png"/>
 
-## **Architecture**
+## **Asupersetitecture**
 
 ![Image](https://github.com/Creative-Ataraxia/Creative-Ataraxia/blob/main/img/4.%20real-time%20analytics%20v3.png)
 
