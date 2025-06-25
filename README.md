@@ -14,6 +14,12 @@ This is a real-time streaming data engineering project; The pipeline ingests, tr
 
 ---
 
+## Real-time Visualizations
+
+<img src="img/Dash_1.png"/>
+
+<img src="img/Dash_2.png"/>
+
 ## **Architecture**
 
 ![Image](https://github.com/Creative-Ataraxia/Creative-Ataraxia/blob/main/img/4.%20real-time%20analytics%20v3.png)
@@ -83,11 +89,18 @@ Submit an issue if you feel like it;
 
 ## **Pipeline Workflow**
 
-### **3. Kafka Topic Creation**
+### **1. DAG of the Services**
+
+```ascii
+
+
+```
+
+### **2. Kafka Topic Creation**
 
 The custom `kafka-topics-init` service automatically creates the required Kafka topics downstream (`eonet_raw`, `eonet_flattened`, `eonet_dlq`, `eonet_cleaned`) when the pipeline starts up. The topics are created using `Kafka`'s CLI: `kafka-topics.sh` via the `kafka-broker` container.
 
-### **4. Flink Jobs**
+### **3. Flink Jobs**
 
 The following `Flink` SQL jobs are responsible for processing the data:
 
@@ -104,11 +117,11 @@ You can submit the Flink jobs from the **Flink UI** (`http://localhost:8081`) on
    ./bin/sql-client.sh -f /opt/sql/full-job.sql
    ```
 
-### **5. Kafka Connect JDBC Sink Connector**
+### **4. Kafka Connect JDBC Sink Connector**
 
 The **JDBC Sink Connector** is used to sink data from the Kafka topic `eonet_cleaned` to `PostgreSQL`. The configuration of this connector is done using a custom JSON config file, which is automatically registered in Kafka Connect via an HTTP request.
 
-### **6. Access the Kafka UI**
+### **5. Access the Kafka UI**
 
 You can access the `Kafka UI` via `http://localhost:8080` to monitor and manage Kafka brokers, topics, messages, and consumer groups.
 
