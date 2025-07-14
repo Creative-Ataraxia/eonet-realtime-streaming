@@ -21,7 +21,7 @@ This is a real-time streaming data engineering project; The pipeline ingests, tr
 
 ## **Architecture**
 
-![Image](https://github.com/Creative-Ataraxia/Creative-Ataraxia/blob/main/img/4.%20real-time%20analytics%20v3.png)
+![Image](https://github.com/Creative-Ataraxia/Creative-Ataraxia/blob/main/img/real-time%20analytics%20v3.png)
 
 ### **Components**
 
